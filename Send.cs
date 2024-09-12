@@ -2,8 +2,7 @@ using System;
 using System.Text;
 using RabbitMQ.Client;
 using Sydesoft.NfcDevice;
-
-class Send
+class Sender
 {
     private static ACR122U acr122u = new ACR122U();
 
@@ -13,9 +12,6 @@ class Send
         acr122u.Init(false, 50, 4, 4, 200);  // NTAG213 initialization
         acr122u.CardInserted += Acr122u_CardInserted;
         acr122u.CardRemoved += Acr122u_CardRemoved;
-        string message = "Hello";
-        sendMessageToRabbitMQ(message);
-
         Console.WriteLine("Waiting for NFC card scan...");
         Console.ReadLine();
     }
@@ -59,29 +55,5 @@ class Send
     private static void Acr122u_CardRemoved()
     {
         Console.WriteLine("NFC Transponder removed.");
-    }
-
-    private static void sendMessageToRabbitMQ(string message)
-    {
-        // Set up RabbitMQ connection
-        var factory = new ConnectionFactory { HostName = "localhost" };
-        using var connection = factory.CreateConnection();
-        using var channel = connection.CreateModel();
-
-        // Declare a queue
-        channel.QueueDeclare(queue: "hello",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: null);
-
-        // Send message to RabbitMQ
-        var body = Encoding.UTF8.GetBytes(message);
-        channel.BasicPublish(exchange: string.Empty,
-                             routingKey: "hello",
-                             basicProperties: null,
-                             body: body);
-
-        Console.WriteLine($" [x] Sent {message}");
     }
 }
