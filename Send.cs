@@ -54,16 +54,16 @@ class Program
 
     private static void ReadAllData(ICardReader reader)
     {
+        // Default Key A and Key B (same as default in many MIFARE Classic cards)
+        byte[] defaultKeyA = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+        byte[] defaultKeyB = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
         for (int sector = 0; sector < TotalSectors; sector++)
         {
-            // Authenticate each sector
-            var byteKey = ConvertNumericKeyToByteArray("2662");
-
-            byte[] defaultKeyA = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-
-            if (AuthenticateSector(reader, sector, defaultKeyA))
+            // Try to authenticate with Key A first
+            if (AuthenticateSector(reader, sector, defaultKeyA, true))  // 'true' indicates Key A
             {
-                Console.WriteLine($"Authenticated Sector {sector}");
+                Console.WriteLine($"Authenticated Sector {sector} using Key A");
 
                 // Read only data blocks (Block 0, 1, and 2), skip Block 3 (sector trailer)
                 for (int block = 0; block < BlocksPerSector - 1; block++)  // Only read blocks 0, 1, and 2
@@ -78,13 +78,32 @@ class Program
             }
             else
             {
-                Console.WriteLine($"Failed to authenticate Sector {sector}");
+                // If Key A fails, try to authenticate with Key B
+                if (AuthenticateSector(reader, sector, defaultKeyB, false))  // 'false' indicates Key B
+                {
+                    Console.WriteLine($"Authenticated Sector {sector} using Key B");
+
+                    // Read only data blocks (Block 0, 1, and 2), skip Block 3 (sector trailer)
+                    for (int block = 0; block < BlocksPerSector - 1; block++)  // Only read blocks 0, 1, and 2
+                    {
+                        int blockNumber = (sector * BlocksPerSector) + block;
+                        byte[] blockData = ReadBlock(reader, blockNumber);
+                        if (blockData != null)
+                        {
+                            Console.WriteLine($"Block {blockNumber} Data: {BitConverter.ToString(blockData)}");
+                        }
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Failed to authenticate Sector {sector} with both Key A and Key B");
+                }
             }
         }
     }
 
 
-    private static bool AuthenticateSector(ICardReader reader, int sectorNumber, byte[] keyA)
+    private static bool AuthenticateSector(ICardReader reader, int sectorNumber, byte[] key, bool useKeyA)
     {
         int blockNumber = sectorNumber * BlocksPerSector; // First block of the sector
 
@@ -95,7 +114,7 @@ class Program
             INS = 0x82,  // Load Key command
             P1 = 0x00,   // Key Structure (0x00 for MIFARE)
             P2 = 0x00,   // Key Slot (0x00 if the key is loaded in slot 0)
-            Data = keyA  // The actual key (6 bytes)
+            Data = key  // The actual key (6 bytes)
         };
 
         var loadKeyBuffer = loadKeyApdu.ToArray();
@@ -121,7 +140,7 @@ class Program
             0x01,       // Version number
             0x00,       // MSB of block number (0x00 since it's usually < 256)
             (byte)blockNumber, // LSB of block number
-            0x60,       // 0x60 indicates Key A
+            useKeyA ? (byte)0x60 : (byte)0x61,  // 0x60 indicates Key A, 0x61 indicates Key B
             0x00        // Key slot (0x00 if the key is loaded in slot 0)
             }
         };
