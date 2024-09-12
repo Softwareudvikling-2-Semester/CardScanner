@@ -1,61 +1,68 @@
 using System;
-using System.Text;
-using RabbitMQ.Client;
-using Sydesoft.NfcDevice;
+using PCSC;
+using PCSC.Iso7816;
+using PCSC.Monitoring;
 
-class Send
+class Program
 {
-    private static ACR122U acr122u = new ACR122U();
-
     static void Main(string[] args)
     {
-        // Initialize the NFC reader
-        acr122u.Init(false, 50, 4, 4, 200);  // NTAG213 initialization
-        acr122u.CardInserted += Acr122u_CardInserted;
-        acr122u.CardRemoved += Acr122u_CardRemoved;
+        var contextFactory = ContextFactory.Instance;
+        using var context = contextFactory.Establish(SCardScope.System);
+        var readers = context.GetReaders();
+        if (readers.Length == 0)
+        {
+            Console.WriteLine("No readers found.");
+            return;
+        }
 
+        var readerName = readers[0];  // Assumes the first reader is the one you want
         Console.WriteLine("Waiting for NFC card scan...");
+
+        using var monitor = new SCardMonitor(contextFactory, SCardScope.System);
+        monitor.CardInserted += (sender, args) =>
+        {
+            Console.WriteLine("NFC Transponder detected.");
+            using var reader = context.ConnectReader(readerName, SCardShareMode.Shared, SCardProtocol.Any);
+            ProcessCard(reader);
+        };
+
+        monitor.CardRemoved += (sender, args) =>
+        {
+            Console.WriteLine("NFC Transponder removed.");
+        };
+
+        monitor.Start(readerName);
+
+        Console.WriteLine("Press enter to exit");
         Console.ReadLine();
+        monitor.Cancel();
     }
 
-    // Event handler for when a card is inserted
-    private static void Acr122u_CardInserted(PCSC.ICardReader reader)
+    private static void ProcessCard(ICardReader reader)
     {
-        Console.WriteLine("NFC Transponder detected.");
+        var apdu = new CommandApdu(IsoCase.Case2Short, reader.Protocol)
+        {
+            CLA = 0xFF, // Class
+            Instruction = InstructionCode.GetData,
+            P1 = 0x00,  // Parameter 1
+            P2 = 0x00,  // Parameter 2
+            Le = 0       // Expected length of the data returned
+        };
 
-        // Get the unique ID of the card
-        var uid = BitConverter.ToString(acr122u.GetUID(reader)).Replace("-", "");
-        Console.WriteLine("Unique ID: " + uid);
+        var sendBuffer = apdu.ToArray();
+        var receiveBuffer = new byte[259]; // Adjust size as needed
 
-        // Read data from the NFC card
-        var nfcData = Encoding.UTF8.GetString(acr122u.ReadData(reader));
-        Console.WriteLine("Read NFC data: " + nfcData);
+        // Using the simplified Transmit call
+        var receivedLength = reader.Transmit(sendBuffer, receiveBuffer);
+        if (receivedLength < 0) // Assuming negative values indicate an error
+        {
+            Console.WriteLine($"Failed to transmit APDU. Received length: {receivedLength}");
+            return;
+        }
 
-        // Set up RabbitMQ connection
-        var factory = new ConnectionFactory { HostName = "localhost" };
-        using var connection = factory.CreateConnection();
-        using var channel = connection.CreateModel();
-
-        // Declare a queue
-        channel.QueueDeclare(queue: "hello",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: null);
-
-        // Send NFC data to RabbitMQ
-        var body = Encoding.UTF8.GetBytes(nfcData);
-        channel.BasicPublish(exchange: string.Empty,
-                             routingKey: "hello",
-                             basicProperties: null,
-                             body: body);
-
-        Console.WriteLine($" [x] Sent NFC data: {nfcData}");
-    }
-
-    // Event handler for when a card is removed
-    private static void Acr122u_CardRemoved()
-    {
-        Console.WriteLine("NFC Transponder removed.");
+        // Parsing the response assuming the actual response data starts at index 0 and receivedLength specifies the data size
+        var responseApdu = new ResponseApdu(receiveBuffer, receivedLength, IsoCase.Case2Short, reader.Protocol);
+        Console.WriteLine("Card UID: " + BitConverter.ToString(responseApdu.GetData()));
     }
 }

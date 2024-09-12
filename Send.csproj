@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="NFC-ACR122U" Version="1.0.0" />
+    <PackageReference Include="PCSC.Iso7816" Version="5.0.0" />
     <PackageReference Include="RabbitMQ.Client" Version="6.8.1" />
   </ItemGroup>
 
