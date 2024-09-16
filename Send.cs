@@ -29,11 +29,11 @@ public class Program
             Console.WriteLine("NFC Transponder detected.");
             using var reader = context.ConnectReader(readerName, SCardShareMode.Shared, SCardProtocol.Any);
 
-            // Vi kalder GetCardUID metoden, for at udtrække UID fra kortet.
+            // Vi kalder GetCardUID metoden, for at udtrÃ¦kke UID fra kortet.
             var uid = GetCardUID(reader);
             if (uid != null)
             {
-                //Vi konverterer byte arrayet til en string, så vi kan bruge det, og sende til RabbitMQ.
+                //Vi konverterer byte arrayet til en string, sÃ¥ vi kan bruge det, og sende til RabbitMQ.
                 RabbitConnection.sendMessageToRabbitMQ(BitConverter.ToString(uid));
             }
             else
@@ -54,10 +54,10 @@ public class Program
         monitor.Cancel();
     }
 
-    //Vi bruger PCSC library til at læse data fra kortet, ud fra dokumentationen.
+    //Vi bruger PCSC library til at lÃ¦se data fra kortet, ud fra dokumentationen.
     private static byte[] GetCardUID(ICardReader reader)
     {
-        //Vi opretter en CommandApdu for at kunne læse UID korrekt
+        //Vi opretter en CommandApdu for at kunne lÃ¦se UID korrekt
         var getUidCommand = new CommandApdu(IsoCase.Case2Short, reader.Protocol)
         {
             CLA = 0xFF,

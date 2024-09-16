@@ -5,6 +5,8 @@ VisualStudioVersion = 17.9.34728.123
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Send", "Send.csproj", "{F47EE745-799D-462E-A506-453A5C756FFB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Recieve", "..\Recieve\Recieve.csproj", "{FD4AD30B-27D1-422B-94C6-AB5B65B5BA91}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{F47EE745-799D-462E-A506-453A5C756FFB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F47EE745-799D-462E-A506-453A5C756FFB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F47EE745-799D-462E-A506-453A5C756FFB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD4AD30B-27D1-422B-94C6-AB5B65B5BA91}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD4AD30B-27D1-422B-94C6-AB5B65B5BA91}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD4AD30B-27D1-422B-94C6-AB5B65B5BA91}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD4AD30B-27D1-422B-94C6-AB5B65B5BA91}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
