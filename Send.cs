@@ -1,59 +1,100 @@
 using System;
-using System.Text;
-using RabbitMQ.Client;
-using Sydesoft.NfcDevice;
-class Sender
-{
-    private static ACR122U acr122u = new ACR122U();
+using PCSC;
+using PCSC.Iso7816;
+using PCSC.Monitoring;
+using Send;
 
+public class Program
+{
     static void Main(string[] args)
     {
-        // Initialize the NFC reader
-        acr122u.Init(false, 50, 4, 4, 200);  // NTAG213 initialization
-        acr122u.CardInserted += Acr122u_CardInserted;
-        acr122u.CardRemoved += Acr122u_CardRemoved;
+        ProcessCard();
+    }
+
+    private static void ProcessCard() {
+        var contextFactory = ContextFactory.Instance;
+        using var context = contextFactory.Establish(SCardScope.System);
+        var readers = context.GetReaders();
+        if (readers.Length == 0)
+        {
+            Console.WriteLine("No readers found.");
+            return;
+        }
+        var readerName = readers[0];
         Console.WriteLine("Waiting for NFC card scan...");
+
+        using var monitor = new SCardMonitor(contextFactory, SCardScope.System);
+        monitor.CardInserted += (sender, args) =>
+        {
+            Console.WriteLine("NFC Transponder detected.");
+            using var reader = context.ConnectReader(readerName, SCardShareMode.Shared, SCardProtocol.Any);
+
+            // Vi kalder GetCardUID metoden, for at udtrække UID fra kortet.
+            var uid = GetCardUID(reader);
+            if (uid != null)
+            {
+                //Vi konverterer byte arrayet til en string, så vi kan bruge det, og sende til RabbitMQ.
+                RabbitConnection.sendMessageToRabbitMQ(BitConverter.ToString(uid));
+            }
+            else
+            {
+                Console.WriteLine("Failed to read Card UID.");
+            }
+        };
+
+        monitor.CardRemoved += (sender, args) =>
+        {
+            Console.WriteLine("NFC Transponder removed.");
+        };
+
+        monitor.Start(readerName);
+
+        Console.WriteLine("Press enter to exit");
         Console.ReadLine();
+        monitor.Cancel();
     }
 
-    // Event handler for when a card is inserted
-    private static void Acr122u_CardInserted(PCSC.ICardReader reader)
+    //Vi bruger PCSC library til at læse data fra kortet, ud fra dokumentationen.
+    private static byte[] GetCardUID(ICardReader reader)
     {
-        Console.WriteLine("NFC Transponder detected.");
+        //Vi opretter en CommandApdu for at kunne læse UID korrekt
+        var getUidCommand = new CommandApdu(IsoCase.Case2Short, reader.Protocol)
+        {
+            CLA = 0xFF,
+            INS = 0xCA,
+            P1 = 0x00,
+            P2 = 0x00,
+            Le = 0x00 
+        };
 
-        // Get the unique ID of the card
-        var uid = BitConverter.ToString(acr122u.GetUID(reader)).Replace("-", "");
-        Console.WriteLine("Unique ID: " + uid);
+        var sendBuffer = getUidCommand.ToArray();
+        var receiveBuffer = new byte[258];
 
-        // Read data from the NFC card
-        var nfcData = Encoding.UTF8.GetString(acr122u.ReadData(reader));
-        Console.WriteLine("Read NFC data: " + nfcData);
+        int receivedLength = reader.Transmit(sendBuffer, receiveBuffer);
 
-        // Set up RabbitMQ connection
-        var factory = new ConnectionFactory { HostName = "localhost" };
-        using var connection = factory.CreateConnection();
-        using var channel = connection.CreateModel();
+        if (receivedLength >= 2)
+        {
+            byte sw1 = receiveBuffer[receivedLength - 2];
+            byte sw2 = receiveBuffer[receivedLength - 1];
 
-        // Declare a queue
-        channel.QueueDeclare(queue: "hello",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: null);
-
-        // Send NFC data to RabbitMQ
-        var body = Encoding.UTF8.GetBytes(nfcData);
-        channel.BasicPublish(exchange: string.Empty,
-                             routingKey: "hello",
-                             basicProperties: null,
-                             body: body);
-
-        Console.WriteLine($" [x] Sent NFC data: {nfcData}");
-    }
-
-    // Event handler for when a card is removed
-    private static void Acr122u_CardRemoved()
-    {
-        Console.WriteLine("NFC Transponder removed.");
+            if (sw1 == 0x90 && sw2 == 0x00)
+            {
+                // UID is in the response data before SW1 and SW2
+                int uidLength = receivedLength - 2;
+                byte[] uid = new byte[uidLength];
+                Array.Copy(receiveBuffer, 0, uid, 0, uidLength);
+                return uid;
+            }
+            else
+            {
+                Console.WriteLine($"Failed to get UID. SW1SW2: {sw1:X2}{sw2:X2}");
+                return null;
+            }
+        }
+        else
+        {
+            Console.WriteLine("Failed to get UID. Invalid response length.");
+            return null;
+        }
     }
 }

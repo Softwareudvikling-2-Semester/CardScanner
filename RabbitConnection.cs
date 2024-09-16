@@ -1,30 +1,40 @@
-﻿using RabbitMQ.Client;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
-public class RabbitConnection
+namespace Send
 {
-    public static void sendMessageToRabbitMQ(string message)
+    using RabbitMQ.Client;
+    using System;
+    using System.Text;
+
+    public class RabbitConnection
     {
-        // Set up RabbitMQ connection
-        var factory = new ConnectionFactory { HostName = "localhost" };
-        using var connection = factory.CreateConnection();
-        using var channel = connection.CreateModel();
+        public static void sendMessageToRabbitMQ(string message)
+        {
+            //Vi sætter rabbitMQ op
+            var factory = new ConnectionFactory { HostName = "localhost" };
+            using var connection = factory.CreateConnection();
+            using var channel = connection.CreateModel();
 
-        // Declare a queue
-        channel.QueueDeclare(queue: "hello",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: null);
+            // Vi opretter en queue, som vi kalder "send-card-uid"
+            channel.QueueDeclare(queue: "send-card-uid",
+                                 durable: false,
+                                 exclusive: false,
+                                 autoDelete: false,
+                                 arguments: null);
 
-        // Send the message to RabbitMQ
-        var body = Encoding.UTF8.GetBytes(message);
-        channel.BasicPublish(exchange: string.Empty,
-                             routingKey: "hello",
-                             basicProperties: null,
-                             body: body);
+            // Vi sender beskeden til "send-card-uid"
+            var body = Encoding.UTF8.GetBytes(message);
+            channel.BasicPublish(exchange: string.Empty,
+                                 routingKey: "send-card-uid",
+                                 basicProperties: null,
+                                 body: body);
 
-        Console.WriteLine($" [x] Sent message: {message}");
+            // Vi viser den sendte besked i konsollen, så vi kan se at det virker
+            Console.WriteLine($" [x] Sent message: {message}");
+        }
     }
 }
