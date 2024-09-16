@@ -19,7 +19,7 @@ namespace Send
             using var connection = factory.CreateConnection();
             using var channel = connection.CreateModel();
 
-            // Vi opretter en queue, som vi kalder "hello"
+            // Vi opretter en queue, som vi kalder "send-card-uid"
             channel.QueueDeclare(queue: "send-card-uid",
                                  durable: false,
                                  exclusive: false,
@@ -29,7 +29,7 @@ namespace Send
             // Vi sender beskeden til "send-card-uid"
             var body = Encoding.UTF8.GetBytes(message);
             channel.BasicPublish(exchange: string.Empty,
-                                 routingKey: "hello",
+                                 routingKey: "send-card-uid",
                                  basicProperties: null,
                                  body: body);
 
